@@ -64,15 +64,15 @@
         <p><a href="#">Contact Us</a> | <a href="#">Privacy Policy</a></p>
     </footer>
     <script>
-        // Initialize the map and set its view to a specific location
+        
         const map = L.map('map').setView([40.7128, -74.0060], 12); 
 
-        // Add a tile layer (OpenStreetMap as the base map)
+        
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        // Create a custom icon for subway stations
+       
         const subwayIcon = L.icon({
             iconUrl: 'https://cdn-icons-png.flaticon.com/512/5599/5599473.png', // Custom icon URL
             iconSize: [25, 25], // Size of the icon
@@ -80,17 +80,17 @@
             popupAnchor: [0, -12] // Anchor point of the popup relative to the icon
         });
 
-        // Create a marker cluster group
+        
         const markers = L.markerClusterGroup();
 
-        // Function to style each point with the custom icon
+        
         function onEachFeature(feature, layer) {
             if (feature.properties && feature.properties.NAME) {
                 layer.bindPopup(feature.properties.NAME); // Add popup with station name
             }
         }
 
-        // Add the GeoJSON layer using the variable loaded in the head
+        
         L.geoJSON(subway, {
             pointToLayer: function (feature, latlng) {
                 return L.marker(latlng, { icon: subwayIcon }); // Use custom icon for markers
@@ -100,25 +100,25 @@
             markers.addLayer(layer); // Add each layer to the marker cluster group
         });
 
-        // Add the marker cluster group to the map
+        
         map.addLayer(markers);
 
-        // Add the search control to the map
+        
         const geocoder = L.Control.geocoder({
             defaultMarkGeocode: true
         }).addTo(map);
 
-        // Add the locate control to the map
+        
         const locateControl = L.control.locate({
-            position: 'topright', // Position of the control
-            drawCircle: true, // Draw a circle around the user's location
-            follow: false, // Follow the user's location
-            setView: true, // Zoom to the user's location
-            keepCurrentZoomLevel: true, // Keep the current zoom level
-            icon: 'fas fa-location-arrow', // Font Awesome icon for the button
-            iconLoading: 'fas fa-spinner fa-spin', // Icon while loading
+            position: 'topright', 
+            drawCircle: true, 
+            follow: false, 
+            setView: true,
+            keepCurrentZoomLevel: true,
+            icon: 'fas fa-location-arrow', 
+            iconLoading: 'fas fa-spinner fa-spin', 
             strings: {
-                title: "Show me where I am" // Tooltip text
+                title: "Show me where I am" 
             }
         }).addTo(map);
     </script>
