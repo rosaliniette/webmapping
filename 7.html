@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Map with Inline GeoJSON</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" /> <!-- Font Awesome -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+    <script src="substat.geojson" type="text/javascript"></script>
+    <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700&display=swap" rel="stylesheet"> <!-- Google Fonts -->
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: white; /* Background color for the body */
+            font-family: 'Times New Roman', Times, serif; /* Use Times New Roman for body */
+        }
+        #map {
+            height: calc(100vh - 160px); /* Adjust height to allow for title, paragraph, and footer */
+            margin: 10px; /* White margins around the map */
+            border: 5px solid black; /* Black frame around the map */
+            border-radius: 10px; /* Rounded corners for the map */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+        }
+        .container {
+            text-align: center;
+            margin: 20px; /* Margin for the paragraph */
+        }
+        p {
+            margin: 5px 0;
+            font-size: 16px; /* Increased font size for the paragraph */
+            line-height: 1.5; /* Better line height for readability */
+            text-align: center; /* Center align the paragraph */
+        }
+        .logo {
+            display: block; /* Center the logo */
+            margin: 50px auto; /* Auto margins for centering */
+            width: 250px; /* Adjust size as needed */
+        }
+        footer {
+            text-align: center; /* Center align the footer text */
+            margin: 20px; /* Margin for the footer */
+            font-size: 14px; /* Font size for footer text */
+            color: #555; /* Dark gray color for footer text */
+        }
+    </style>
+</head>
+<body>
+    <img src="https://logovtor.com/wp-content/uploads/2020/10/new-york-magazine-logo-vector.png" alt="NY Logo" class="logo">
+    <div class="container">
+        <p>The New York City subway is one of the largest and busiest public transportation systems in the world. It operates 24 hours a day, 7 days a week, serving millions of passengers each day. This map shows the locations of various subway stations across the city, helping you navigate the extensive transit network.</p>
+    </div>
+    <div id="map"></div>
+    <footer>
+        <p>&copy; 2024 ekramsmap. All rights reserved.</p>
+        <p><a href="#">Contact Us</a> | <a href="#">Privacy Policy</a></p>
+    </footer>
+    <script>
+        // Initialize the map and set its view to a specific location
+        const map = L.map('map').setView([40.7128, -74.0060], 12); 
+
+        // Add a tile layer (OpenStreetMap as the base map)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Create a custom icon for subway stations
+        const subwayIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/5599/5599473.png', // Custom icon URL
+            iconSize: [25, 25], // Size of the icon
+            iconAnchor: [12, 12], // Anchor point of the icon
+            popupAnchor: [0, -12] // Anchor point of the popup relative to the icon
+        });
+
+        // Create a marker cluster group
+        const markers = L.markerClusterGroup();
+
+        // Function to style each point with the custom icon
+        function onEachFeature(feature, layer) {
+            if (feature.properties && feature.properties.NAME) {
+                layer.bindPopup(feature.properties.NAME); // Add popup with station name
+            }
+        }
+
+        // Add the GeoJSON layer using the variable loaded in the head
+        L.geoJSON(subway, {
+            pointToLayer: function (feature, latlng) {
+                return L.marker(latlng, { icon: subwayIcon }); // Use custom icon for markers
+            },
+            onEachFeature: onEachFeature // Attach popups
+        }).eachLayer(function (layer) {
+            markers.addLayer(layer); // Add each layer to the marker cluster group
+        });
+
+        // Add the marker cluster group to the map
+        map.addLayer(markers);
+
+        // Add the search control to the map
+        const geocoder = L.Control.geocoder({
+            defaultMarkGeocode: true
+        }).addTo(map);
+
+        // Add the locate control to the map
+        const locateControl = L.control.locate({
+            position: 'topright', // Position of the control
+            drawCircle: true, // Draw a circle around the user's location
+            follow: false, // Follow the user's location
+            setView: true, // Zoom to the user's location
+            keepCurrentZoomLevel: true, // Keep the current zoom level
+            icon: 'fas fa-location-arrow', // Font Awesome icon for the button
+            iconLoading: 'fas fa-spinner fa-spin', // Icon while loading
+            strings: {
+                title: "Show me where I am" // Tooltip text
+            }
+        }).addTo(map);
+    </script>
+</body>
+</html>
