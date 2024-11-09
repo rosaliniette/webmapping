@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Web Map with Leaflet, D3.js, and Chart.js</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body, html { height: 100%; margin: 0; }
+        #map { height: 100vh; }
+        .legend { background: white; padding: 10px; line-height: 1.5; font-family: Arial, sans-serif; box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); }
+        .legend h4 { margin: 0 0 5px; }
+        .legend .color-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; }
+        #chart-container {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 400px;
+            height: 300px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        #chart {
+            width: 100%;
+            height: 100%;
+        }
+        #toggle-chart {
+            position: fixed;
+            bottom: 330px;
+            left: 20px;
+            z-index: 1001;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+        }
+        #layers-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            background: #fff;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #layers-button img {
+            width: 30px;
+            height: 30px;
+        }
+        #layers-panel {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            width: 200px;
+            background: #fff;
+            z-index: 1001;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+            display: none;
+        }
+        #layers-panel input {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="chart-container">
+    <canvas id="chart"></canvas>
+</div>
+
+<button id="toggle-chart">Hide Chart</button>
+
+<div id="layers-button">
+    <img src="https://static-00.iconduck.com/assets.00/layers-icon-2045x2048-m7h5gig6.png" alt="Layers Icon">
+    <span>Layers</span>
+</div>
+
+<script>
+    // Initialize the Leaflet map
+    const map = L.map("map").setView([31.5, -7.5], 7);  // Centered on Morocco
+
+    // Add the epicenter marker with custom icon
+    const epicenterIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/rosaliniette/webmapping/main/epicentre.png',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+    });
+
+    const epicenterMarker = L.marker([31.07, -8.3819], { icon: epicenterIcon })
+        .addTo(map)
+        .bindPopup("Epicenter of the earthquake");
+
+    // Add a basemap layer (e.g., OpenStreetMap)
+    const baseLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Define the Danger Buffers layer group
+    const dangerBufferLayer = L.layerGroup().addTo(map);
+
+    // Define colors and URLs for each buffer distance layer (in correct order for display)
+    const bufferLayers = [
+        { dist: 150, color: "#FFD1D1", url: "https://raw.githubusercontent.com/rosaliniette/webmapping/main/150.geojson", percentage: 25 },
+        { dist: 100, color: "#FA8072", url: "https://raw.githubusercontent.com/rosaliniette/webmapping/main/100.geojson", percentage: 40 },
+        { dist: 50, color: "#F08080", url: "https://raw.githubusercontent.com/rosaliniette/webmapping/main/50.geojson", percentage: 55 },
+        { dist: 30, color: "#CD5C5C", url: "https://raw.githubusercontent.com/rosaliniette/webmapping/main/30.geojson", percentage: 70 },
+        { dist: 20, color: "#B22222", url: "https://raw.githubusercontent.com/rosaliniette/webmapping/main/20.geojson", percentage: 85 },
+        { dist: 10, color: "#800000", url: "https://raw.githubusercontent.com/rosaliniette/webmapping/main/10.geojson", percentage: 100 }  // Closest on top
+    ];
+    
+
+    // Function to load and style each buffer layer and add it to the danger buffer layer group
+    function loadBufferLayer(buffer) {
+        fetch(buffer.url)
+            .then(response => response.json())
+            .then(data => {
+                const bufferLayer = L.geoJSON(data, {
+                    style: {
+                        color: buffer.color,
+                        fillColor: buffer.color,
+                        fillOpacity: 0.5,
+                        weight: 1.5,
+                        dashArray: "3,3"
+                    },
+                    onEachFeature: (feature, layer) => {
+                        layer.bindPopup(`Damage Zone: ${buffer.percentage}% damage probability (${buffer.dist} km)`);
+
+                        // Add hover effects for interactivity
+                        layer.on("mouseover", function () {
+                            this.setStyle({ fillOpacity: 0.7, weight: 2 });
+                        });
+                        layer.on("mouseout", function () {
+                            this.setStyle({ fillOpacity: 0.5, weight: 1.5 });
+                        });
+                    }
+                });
+                dangerBufferLayer.addLayer(bufferLayer);
+            })
+            .catch(error => console.error(`Error loading GeoJSON for distance ${buffer.dist} km:`, error));
+    }
+
+    // Load each buffer layer in the correct order for display
+    bufferLayers.forEach(loadBufferLayer);
+
+    // Define the Provinces layer group
+    const provincesLayer = L.layerGroup().addTo(map);
+
+    // Load and style provinces from province.geojson
+    fetch("https://raw.githubusercontent.com/rosaliniette/webmapping/main/province.geojson")
+        .then(response => response.json())
+        .then(data => {
+            const provinceColors = d3.scaleOrdinal(d3.schemeCategory10); // Use a color scale for unique colors
+
+            // Add provinces layer
+            const provinceLayer = L.geoJSON(data, {
+                style: (feature) => ({
+                    color: "#000",
+                    weight: 1,
+                    fillColor: provinceColors(feature.properties.Name),
+                    fillOpacity: 0.4
+                }),
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(`Province: ${feature.properties.Name}`);
+                    layer.on("mouseover", function () { this.setStyle({ fillOpacity: 0.7 }); });
+                    layer.on("mouseout", function () { this.setStyle({ fillOpacity: 0.4 }); });
+                }
+            });
+            provincesLayer.addLayer(provinceLayer);
+        })
+        .catch(error => console.error("Error loading province GeoJSON:", error));
+
+    // Create a layer group for the animated propagation circles
+    const propagationLayerGroup = L.layerGroup().addTo(map);
+
+    // Function to animate the propagation as a circle growing outward, and add it to the propagation layer
+    function animatePropagation() {
+        let currentRadius = 0;
+        const maxRadius = 150000; // Maximum radius in meters (150 km)
+        const increment = 3000; // Increment in meters for each step
+        const delay = 50; // Delay between steps in milliseconds
+
+        const propagationCircle = L.circle([31.07, -8.3819], {
+            radius: currentRadius,
+            color: 'red',
+            fillColor: '#f03',
+            fillOpacity: 0.2
+        }).addTo(propagationLayerGroup);
+
+        const interval = setInterval(() => {
+            if (currentRadius < maxRadius) {
+                currentRadius += increment;
+                propagationCircle.setRadius(currentRadius);
+            } else {
+                currentRadius = 0; // Reset radius to create a loop
+            }
+        }, delay);
+    }
+
+    // Start the propagation animation, and add to the propagation layer group
+    animatePropagation();
+
+    // Create a D3-powered Layers Button
+    d3.select("body")
+        .append("div")
+        .attr("id", "layers-panel")
+        .style("position", "absolute")
+        .style("top", "70px")
+        .style("right", "20px")
+        .style("width", "200px")
+        .style("background", "#fff")
+        .style("padding", "10px")
+        .style("box-shadow", "0 0 10px rgba(0, 0, 0, 0.5)")
+        .style("border-radius", "5px")
+        .style("display", "none");
+
+    // Danger Buffers Layer Toggle
+    d3.select("#layers-panel")
+        .append("label")
+        .style("display", "block")
+        .append("input")
+        .attr("type", "checkbox")
+        .attr("id", "toggle-danger-buffers")
+        .on("change", function () {
+            if (this.checked) {
+                map.addLayer(dangerBufferLayer);
+            } else {
+                map.removeLayer(dangerBufferLayer);
+            }
+        });
+
+    d3.select("#layers-panel")
+        .select("label")
+        .append("span")
+        .text(" Danger Buffers");
+
+    // Provinces Layer Toggle
+    d3.select("#layers-panel")
+        .append("label")
+        .style("display", "block")
+        .append("input")
+        .attr("type", "checkbox")
+        .attr("id", "toggle-provinces")
+        .on("change", function () {
+            if (this.checked) {
+                map.addLayer(provincesLayer);
+            } else {
+                map.removeLayer(provincesLayer);
+            }
+        });
+
+    d3.select("#layers-panel")
+        .selectAll("label")
+        .filter(":nth-child(2)")
+        .append("span")
+        .text(" Provinces");
+
+    // Propagation Animation Layer Toggle
+    d3.select("#layers-panel")
+        .append("label")
+        .style("display", "block")
+        .append("input")
+        .attr("type", "checkbox")
+        .attr("id", "toggle-propagation")
+        .on("change", function () {
+            if (this.checked) {
+                map.addLayer(propagationLayerGroup);
+                animatePropagation(); // Restart the animation
+            } else {
+                map.removeLayer(propagationLayerGroup);
+            }
+        });
+
+    d3.select("#layers-panel")
+        .selectAll("label")
+        .filter(":nth-child(3)")
+        .append("span")
+        .text(" Propagation Effect");
+
+    d3.select("#layers-button").on("click", function () {
+        const panel = d3.select("#layers-panel");
+        if (panel.style("display") === "none") {
+            panel.style("display", "block");
+        } else {
+            panel.style("display", "none");
+        }
+    });
+
+    // Create a legend control for Leaflet
+    const legend = L.control({ position: "bottomright" });
+
+    legend.onAdd = function() {
+        const div = L.DomUtil.create("div", "legend");
+        div.innerHTML = `<h4>Damage Intensity Legend</h4>`;
+
+        bufferLayers.forEach(({ color, percentage, dist }) => {
+            div.innerHTML += `
+                <div>
+                    <span class="color-box" style="background: ${color}; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></span>
+                    ${percentage}% Damage Probability (${dist} km)
+                </div>
+            `;
+        });
+
+        return div;
+    };
+
+    // Add the legend to the map
+    legend.addTo(map);
+
+    // Initialize the Chart.js chart
+    const ctx = document.getElementById('chart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ["Al Haouz", "Taroudant", "Chichaoua", "Marrakech", "Azilal", "Ouarzazate"],
+            datasets: [
+                {
+                    label: 'Fatalities',
+                    data: [1684, 980, 202, 18, 5, 2],
+                    backgroundColor: '#D9534F'
+                },
+                {
+                    label: 'Injuries',
+                    data: [1500, 1000, 300, 50, 20, 10],
+                    backgroundColor: '#5BC0DE'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { title: { display: true, text: 'Province' } },
+                y: { title: { display: true, text: 'Number of People' } }
+            },
+            plugins: {
+                legend: { position: 'top' },
+                title: { display: true, text: '2023 Morocco Earthquake Impact by Province' }
+            }
+        }
+    });
+
+    // Toggle button functionality to show/hide the chart
+    const toggleButton = document.getElementById('toggle-chart');
+    const chartContainer = document.getElementById('chart-container');
+
+    toggleButton.addEventListener('click', () => {
+        if (chartContainer.style.display === 'none') {
+            chartContainer.style.display = 'block';
+            toggleButton.textContent = 'Hide Chart';
+        } else {
+            chartContainer.style.display = 'none';
+            toggleButton.textContent = 'Show Chart';
+        }
+    });
+</script>
+
+</body>
+</html>
