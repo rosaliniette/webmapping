@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaflet Map with Sidebar, Layer Toggles, and Draw Plugin</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    #map {
+      height: 100%;
+      margin-left: 250px; /* Sidebar width */
+    }
+
+    #sidebar {
+      width: 250px;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: #2c3e50;
+      color: white;
+      padding: 20px;
+      box-shadow: 3px 0 6px rgba(0, 0, 0, 0.1);
+      overflow-y: auto;
+    }
+
+    #sidebar h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    .layer-option {
+      margin: 5px 0;
+      padding: 10px;
+      background-color: #34495e;
+      border-radius: 5px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .layer-option:hover {
+      background-color: #1abc9c;
+    }
+    #chart-container {
+  display: none; /* Initially hidden */
+  position: fixed;
+  top: 20px; /* Adjust positioning */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Center alignment */
+  background-color: white; /* White background for popup */
+  padding: 20px; /* Add padding for spacing */
+  border-radius: 10px; /* Rounded corners */
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2); /* Shadow effect */
+  z-index: 1000; /* Make sure it appears above other elements */
+  width: 600px; /* Set a fixed width */
+  height: auto; /* Adjust height dynamically */
+}
+   
+   </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <h2>Map Layers</h2>
+    <div class="layer-option" id="toggleIntensityLayer">Earthquake Intensity</div>
+    <div class="layer-option" id="toggleProvincesLayer">Provinces</div>
+    <div class="layer-option" id="toggleChartLayer">Earthquake Impact Chart</div>
+</div>
+<!-- Chart container (Initially hidden) -->
+
+<div id="chart-container" style="display: none;">
+  <canvas id="chart" width="400" height="200"></canvas>
+
+  </div>
+  
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script>
+    var map = L.map('map', {
+      center: [31, -7],
+      zoom: 8
+    });
+
+    // Add base tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Earthquake Intensity Layer
+    var featureLayerUrl = 'https://services5.arcgis.com/sjP4Ugu5s0dZWLjd/ArcGIS/rest/services/MI/FeatureServer/0';
+    var featureLayer = L.geoJSON(null, {
+      style: function(feature) {
+        return {
+          fillColor: getColorForIntensity(feature.properties.PARAMVALUE),
+          weight: 0.5,
+          opacity: 1,
+          color: '#fff',
+          fillOpacity: 0.6
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        layer.bindPopup('<strong>Intensity:</strong> ' + feature.properties.PARAMVALUE);
+      }
+    });
+
+    fetch(featureLayerUrl + '/query?where=1%3D1&outFields=*&f=geojson')
+      .then(response => response.json())
+      .then(data => featureLayer.addData(data))
+      .catch(error => console.error('Error loading Feature Layer:', error));
+
+    // Provinces Layer
+    var provincesLayer = L.geoJSON(null, {
+      style: function(feature) {
+        return {
+          fillColor: getProvinceColor(feature.properties.Name),
+          weight: 1,
+          opacity: 1,
+          color: 'white',
+          fillOpacity: 0.6
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        layer.bindPopup('<strong>' + feature.properties.Name + '</strong>');
+      }
+    });
+
+    fetch('https://rosaliniette.github.io/webmapping/province.geojson')
+      .then(response => response.json())
+      .then(data => provincesLayer.addData(data))
+      .catch(error => console.error('Error loading Provinces GeoJSON:', error));
+
+    // Draw Plugin
+    var drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    var drawControl = new L.Control.Draw({
+      edit: { featureGroup: drawnItems },
+      draw: {
+        polygon: true,
+        polyline: true,
+        rectangle: true,
+        circle: true,
+        marker: true
+      }
+    });
+    map.addControl(drawControl);
+
+    map.on('draw:created', function(e) {
+      var layer = e.layer;
+      drawnItems.addLayer(layer);
+    });
+
+    // Layer toggle
+    var intensityLayerVisible = false;
+    var provincesLayerVisible = false;
+
+    document.getElementById('toggleIntensityLayer').addEventListener('click', function() {
+      if (intensityLayerVisible) {
+        map.removeLayer(featureLayer);
+        intensityLayerVisible = false;
+        map.removeControl(intensityLegend); // Remove intensity legend when layer is hidden
+      } else {
+        map.addLayer(featureLayer);
+        intensityLayerVisible = true;
+        intensityLegend.addTo(map); // Add intensity legend when layer is shown
+      }
+    });
+
+    document.getElementById('toggleProvincesLayer').addEventListener('click', function() {
+      if (provincesLayerVisible) {
+        map.removeLayer(provincesLayer);
+        provincesLayerVisible = false;
+        map.removeControl(provinceLegend); // Remove province legend when layer is hidden
+      } else {
+        map.addLayer(provincesLayer);
+        provincesLayerVisible = true;
+        provinceLegend.addTo(map); // Add province legend when layer is shown
+      }
+    });
+
+    // Legends 
+var intensityLegend = L.control({ position: 'bottomright' });
+intensityLegend.onAdd = function() {
+  var div = L.DomUtil.create('div', 'info legend');
+  var grades = [4.5, 5.99, 6.98, 7.97, 8.4];
+  var labels = ['<strong>Earthquake Intensity</strong>'];
+  
+  // Adding the legend content
+  for (var i = 0; i < grades.length; i++) {
+    div.innerHTML +=
+      '<i style="background:' + getColorForIntensity(grades[i]) + '; width: 20px; height: 20px; display: inline-block; margin-right: 5px;"></i> ' +
+      grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+  }
+
+  // Style the legend with a white background and padding
+  div.style.backgroundColor = 'white';  // Set background to white
+  div.style.padding = '10px';           // Add padding
+  div.style.borderRadius = '5px';       // Rounded corners
+  div.style.boxShadow = '0px 0px 6px rgba(0,0,0,0.1)'; // Light shadow for contrast
+
+  return div;
+};
+
+var provinceLegend = L.control({ position: 'bottomright' });
+provinceLegend.onAdd = function() {
+  var div = L.DomUtil.create('div', 'info legend');
+  var provinces = ['Ouarzazate', 'Al Haouz', 'Marrakech', 'Chichaoua'];
+  var colors = ['#FFD700', '#e8a529', '#0eab96', '#6ccabd'];
+  div.innerHTML = '<strong>Provinces</strong><br>';
+  
+  // Adding the province legend content
+  for (var i = 0; i < provinces.length; i++) {
+    div.innerHTML +=
+      '<i style="background:' + colors[i] + '; width: 20px; height: 20px; display: inline-block; margin-right: 5px;"></i> ' +
+      provinces[i] + '<br>';
+  }
+
+  // Style the legend with a white background and padding
+  div.style.backgroundColor = 'white';  // Set background to white
+  div.style.padding = '10px';           // Add padding
+  div.style.borderRadius = '5px';       // Rounded corners
+  div.style.boxShadow = '0px 0px 6px rgba(0,0,0,0.1)'; // Light shadow for contrast
+
+  return div;
+};
+
+    // Function to assign color based on earthquake intensity
+    function getColorForIntensity(value) {
+      return value >= 8.4 ? '#FF0000' :
+             value >= 7.97 ? '#FF4500' :
+             value >= 6.98 ? '#FFD700' :
+             value >= 5.99 ? '#228B22' :
+             value >= 4.5 ? '#0000FF' :
+             '#ADD8E6';
+    }
+
+    // Function to assign color to provinces
+    function getProvinceColor(name) {
+      switch (name) {
+        case 'Ouarzazate': return '#FFD700';
+        case 'Al Haouz': return '#e8a529';
+        case 'Marrakech': return '#0eab96';
+        case 'Chichaoua': return '#6ccabd';
+        default: return '#D3D3D3';
+      }
+    }
+    // Initialize the Chart.js chart
+const ctx = document.getElementById('chart').getContext('2d');
+const earthquakeChart = new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ["Al Haouz", "Taroudant", "Chichaoua", "Marrakech", "Azilal", "Ouarzazate"],
+    datasets: [
+      {
+        label: 'Fatalities',
+        data: [1684, 980, 202, 18, 5, 2],
+        backgroundColor: '#D9534F'
+      },
+      {
+        label: 'Injuries',
+        data: [1500, 1000, 300, 50, 20, 10],
+        backgroundColor: '#5BC0DE'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: { title: { display: true, text: 'Province' } },
+      y: { title: { display: true, text: 'Number of People' } }
+    },
+    plugins: {
+      legend: { position: 'top' },
+      title: { display: true, text: '2023 Morocco Earthquake Impact by Province' }
+    }
+  }
+});
+
+// Toggle button functionality to show/hide the chart
+const toggleButton = document.getElementById('toggleChartLayer');
+const chartContainer = document.getElementById('chart-container');
+
+toggleButton.addEventListener('click', () => {
+  if (chartContainer.style.display === 'none') {
+    chartContainer.style.display = 'block';  // Show the chart container
+    toggleButton.textContent = 'Hide Chart';
+  } else {
+    chartContainer.style.display = 'none';  // Hide the chart container
+    toggleButton.textContent = 'Show Chart';
+  }
+});
+
+  </script>
+</body>
+</html>
