@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Leaflet Random GeoJSON Web Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/lonboard/dist/lonboard.min.js"></script>
+</head>
+<body>
+  <div id="map" style="width: 100%; height: 600px;"></div>
+
+  <script>
+    // Initialize the map using Lonboard
+    var map = L.map('map').setView([31.7917, -7.0926], 5); // Focused on Morocco
+
+    // Add a base layer using Lonboard
+    lonboard.addTo(map);
+
+    // Generate random GeoJSON with 50,000 points
+    function generateRandomGeoJSON(numPoints) {
+      var geojson = {
+        "type": "FeatureCollection",
+        "features": []
+      };
+
+      for (var i = 0; i < numPoints; i++) {
+        var latitude = 27 + (Math.random() * 10); // Latitude roughly within Morocco
+        var longitude = -13 + (Math.random() * 10); // Longitude roughly within Morocco
+
+        geojson.features.push({
+          "type": "Feature",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [longitude, latitude]
+          },
+          "properties": {
+            "id": i
+          }
+        });
+      }
+
+      return geojson;
+    }
+
+    var randomGeoJSON = generateRandomGeoJSON(50000);
+
+    // Add random GeoJSON points to the map
+    L.geoJSON(randomGeoJSON, {
+      pointToLayer: function (feature, latlng) {
+        return L.circleMarker(latlng, {
+          radius: 2,
+          color: 'blue',
+          fillOpacity: 0.5
+        });
+      }
+    }).addTo(map);
+  </script>
+</body>
+</html>
