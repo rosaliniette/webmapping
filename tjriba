@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Earthquake Intensity Visualization</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  
+  <!-- Leaflet Styles -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header, footer {
+      background: #2c3e50;
+      color: white;
+      padding: 10px;
+      text-align: center;
+      font-size: 16px;
+    }
+    footer {
+      font-size: 14px;
+    }
+    #content {
+      display: flex;
+      flex: 1;
+    }
+    #sidebar {
+      width: 250px;
+      background: #f7f9fc;
+      padding: 15px;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+      font-family: Arial, sans-serif;
+    }
+    .sidebar-row {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+      padding: 10px;
+      background: #007bff;
+      color: white;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    .sidebar-row:hover {
+      background: #0056b3;
+    }
+    .sidebar-row i {
+      margin-right: 10px;
+    }
+    #map {
+      flex: 1;
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <h1 style="margin: 0;">Earthquake Intensity Visualization</h1>
+    <p style="margin: 0;">Visualize the impact of the earthquake in Morocco</p>
+  </header>
+
+  <!-- Main Content -->
+  <div id="content">
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-row" id="layer1"><i class="fa fa-map"></i> Layer 1 (dc1.tif)</div>
+      <div class="sidebar-row" id="layer2"><i class="fa fa-map"></i> Layer 2 (dc2.tif)</div>
+      <div class="sidebar-row" id="layer3"><i class="fa fa-map"></i> Layer 3 (dc3.tif)</div>
+      <div class="sidebar-row" id="layer4"><i class="fa fa-map"></i> Layer 4 (dc4.tif)</div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    © 2024 Earthquake Data | Powered by Leaflet & GeoTIFF
+  </footer>
+
+  <!-- Leaflet Scripts -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/georaster"></script>
+  <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
+
+  <script>
+    // Initialize the map
+    var map = L.map('map').setView([31.63, -7.98], 12);
+
+    // Permanent Google Satellite Basemap
+    var permanentGoogleSatelliteLayer = L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '&copy; Google Satellite'
+    }).addTo(map);
+
+    // Sample GeoTIFF URLs (use real URLs in production)
+    var tiffUrls = {
+      layer1: "https://rosaliniette.github.io/webmapping/dc1.tif",
+      layer2: "https://rosaliniette.github.io/webmapping/dc2.tif",
+      layer3: "https://rosaliniette.github.io/webmapping/dc3.tif",
+      layer4: "https://rosaliniette.github.io/webmapping/dc4.tif"
+    };
+
+    // Function to categorize intensity and set colors
+    function getColorForIntensity(value) {
+      return value < 4.98 ? '#68A199' :
+             value < 5.99 ? '#8FB6BC' :
+             value < 6.98 ? '#D2DEC8' :
+             value < 7.97 ? '#AD9D79' :
+             '#806C44';
+    }
+
+    // Function to load and display a specific GeoTIFF layer
+    function loadLayer(layerKey) {
+      // Clear current GeoTIFF layer if any
+      if (currentGeoTIFFLayer) {
+        map.removeLayer(currentGeoTIFFLayer);
+        currentGeoTIFFLayer = null;
+      }
+
+      // Fetch and parse the GeoTIFF
+      fetch(tiffUrls[layerKey])
+        .then(response => response.arrayBuffer())
+        .then(parseGeoraster)
+        .then(georaster => {
+          currentGeoTIFFLayer = new GeoRasterLayer({
+            georaster: georaster,
+            opacity: 0.7,
+            resolution: 256,
+            style: function (value) {
+              return {
+                fillColor: getColorForIntensity(value),
+                weight: 0.5,
+                opacity: 0.5,
+                fillOpacity: 0.7
+              };
+            }
+          }).addTo(map);
+        })
+        .catch(error => console.error("Error loading GeoTIFF:", error));
+    }
+
+    // Load the first layer by default
+    loadLayer("layer1");
+
+    // Add event listeners to the sidebar buttons
+    document.getElementById("layer1").addEventListener("click", function () {
+      loadLayer("layer1");
+    });
+    document.getElementById("layer2").addEventListener("click", function () {
+      loadLayer("layer2");
+    });
+    document.getElementById("layer3").addEventListener("click", function () {
+      loadLayer("layer3");
+    });
+    document.getElementById("layer4").addEventListener("click", function () {
+      loadLayer("layer4");
+    });
+  </script>
+</body>
+</html>
