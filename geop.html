@@ -1,0 +1,691 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaflet Map with Sidebar, Layer Toggles, and Draw Plugin</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    #map {
+      height: 100%;
+      margin-left: 250px; /* Sidebar width */
+    }
+
+    #sidebar {
+      width: 250px;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: #2c3e50;
+      color: white;
+      padding: 20px;
+      box-shadow: 3px 0 6px rgba(0, 0, 0, 0.1);
+      overflow-y: auto;
+    }
+
+    #sidebar h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    .layer-option {
+      margin: 5px 0;
+      padding: 10px;
+      background-color: #34495e;
+      border-radius: 5px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .layer-option:hover {
+      background-color: #1abc9c;
+    }
+    #chart-container {
+  display: none; /* Initially hidden */
+  position: fixed;
+  top: 20px; /* Adjust positioning */
+  left:55%; /* Center horizontally */
+  transform: translateX(-50%); /* Center alignment */
+  background-color: white; /* White background for popup */
+  padding: 20px; /* Add padding for spacing */
+  border-radius: 10px; /* Rounded corners */
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2); /* Shadow effect */
+  z-index: 1000; /* Make sure it appears above other elements */
+  width: 600px; /* Set a fixed width */
+  height: auto; /* Adjust height dynamically */
+}
+   
+#relief-chart-container {
+    display: none;  /* Initially hidden */
+    position: fixed;
+    top: 20px; /* Adjust the vertical position */
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Center alignment */
+    background-color: white; /* White background for the chart */
+    padding: 20px;
+    border-radius: 10px; /* Rounded corners */
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2); /* Shadow effect */
+    z-index: 1000; /* Ensure it's on top of the map */
+    width: 400px; /* Set width for the pie chart container */
+    height: 400px; /* Set height for the pie chart container */
+    overflow: hidden; /* Hide anything that overflows */
+}
+
+canvas {
+    width: 100% !important;  /* Make sure the canvas takes full width inside its container */
+    height: 100% !important; /* Make sure the canvas takes full height inside its container */
+}
+
+  /* Ensure the map takes up the remaining space */
+#map {
+  height: 100%;
+  margin-left: 280px; /* Sidebar width */
+  position: relative; /* Needed to position the iframe inside the map */
+}
+#recovery-chart-container {
+    position: fixed;  /* Fix the position so it hovers over the map */
+    top: 10%;         /* Position it at the top of the page (adjust as necessary) */
+    left: 55%;        /* Center it horizontally */
+    transform: translateX(-50%); /* Center horizontally using translate */
+    padding: 10px;    /* Padding around the progress bar */
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 80%;       /* Set width to 80% of the screen (you can adjust this) */
+    max-width: 600px; /* Set a max-width for the container */
+    z-index: 1000;    /* Ensure it is on top of other elements */
+}
+
+.progress-item {
+    margin-bottom: 15px;
+    font-family: Arial, sans-serif;
+}
+
+.progress-label {
+    font-size: 14px;  /* Adjust font size */
+    margin-bottom: 5px;
+}
+
+.progress-bar {
+    background-color: #e0e0e0;
+    height: 8px;  /* Adjust progress bar height */
+    border-radius: 25px;
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 25px;
+    transition: width 0.5s ease;
+}
+
+.progress-percentage {
+    font-size: 12px;  /* Adjust font size */
+    margin-bottom: 5px;
+}
+
+.progress-state {
+    font-size: 12px;  /* Adjust font size */
+}
+
+.progress-state.in-progress {
+    color: #00BCD4; /* Blue for active state */
+}
+
+.progress-state.success {
+    color: #4CAF50; /* Green for success state */
+}
+
+.progress-state.error {
+    color: #F44336; /* Red for error state */
+}
+
+.progress-item .progress-fill.success {
+    background-color: #4CAF50; /* Green for success */
+}
+
+.progress-item .progress-fill.error {
+    background-color: #F44336; /* Red for error */
+}
+
+.progress-item .progress-state.success {
+    color: #4CAF50;
+}
+
+.progress-item .progress-state.error {
+    color: #F44336;
+}
+
+
+
+
+
+   </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <h2>Quake geoportal</h2>
+    <div class="layer-option" id="toggleIntensityLayer">Earthquake Intensity</div>
+    <div class="layer-option" id="toggleProvincesLayer">Provinces</div>
+    <div class="layer-option" id="toggleChartLayer">Earthquake Impact Chart</div>
+    
+<div class="layer-option" id="openIframeLayer">Satellite Before/After</div>
+<div class="layer-option" id="toggleReliefChartLayer">Relief Assistance Distribution</div>
+<div class="layer-option" id="toggleRecoveryChartLayer">Recovery Progress</div>
+
+
+
+</div>
+<!-- Chart container (Initially hidden) -->
+
+<div id="chart-container" style="display: none;">
+  <canvas id="chart" width="400" height="200"></canvas>
+
+  </div>
+  
+  <div id="relief-chart-container" style="display: none;">
+    <canvas id="reliefChart" width="400" height="200"></canvas>
+  </div>
+
+  <div id="recovery-chart-container" style="display: none;">
+    <div class="progress-item" id="housing-progress">
+        <div class="progress-label">Housing Reconstruction</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 30%; background-color: #00BCD4;"></div> <!-- Active State -->
+        </div>
+        <div class="progress-percentage">30% completed</div>
+        <div class="progress-state" style="color: #00BCD4;">In Progress</div> <!-- Active -->
+    </div>
+
+    <div class="progress-item" id="school-progress">
+        <div class="progress-label">School Reconstruction</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 15%; background-color: #fcd423;"></div> <!-- Active State -->
+        </div>
+        <div class="progress-percentage">15% completed</div>
+        <div class="progress-state" style="color: #2196F3;">In Progress</div> <!-- Active -->
+    </div>
+
+    <div class="progress-item" id="infrastructure-progress">
+        <div class="progress-label">Infrastructure Repair</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 20%; background-color: #4CAF50;"></div> <!-- Active State -->
+        </div>
+        <div class="progress-percentage">20% completed</div>
+        <div class="progress-state" style="color: #4CAF50;">In Progress</div> <!-- Active -->
+    </div>
+</div>
+
+  
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script>
+    var map = L.map('map', {
+      center: [31, -7],
+      zoom: 8
+    });
+
+    // Add base tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Earthquake Intensity Layer
+    var featureLayerUrl = 'https://services5.arcgis.com/sjP4Ugu5s0dZWLjd/ArcGIS/rest/services/MI/FeatureServer/0';
+    var featureLayer = L.geoJSON(null, {
+      style: function(feature) {
+        return {
+          fillColor: getColorForIntensity(feature.properties.PARAMVALUE),
+          weight: 0.5,
+          opacity: 1,
+          color: '#fff',
+          fillOpacity: 0.6
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        layer.bindPopup('<strong>Intensity:</strong> ' + feature.properties.PARAMVALUE);
+      }
+    });
+
+    fetch(featureLayerUrl + '/query?where=1%3D1&outFields=*&f=geojson')
+      .then(response => response.json())
+      .then(data => featureLayer.addData(data))
+      .catch(error => console.error('Error loading Feature Layer:', error));
+
+    // Provinces Layer
+    var provincesLayer = L.geoJSON(null, {
+      style: function(feature) {
+        return {
+          fillColor: getProvinceColor(feature.properties.Name),
+          weight: 1,
+          opacity: 1,
+          color: 'white',
+          fillOpacity: 0.6
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        layer.bindPopup('<strong>' + feature.properties.Name + '</strong>');
+      }
+    });
+
+    fetch('https://rosaliniette.github.io/webmapping/province.geojson')
+      .then(response => response.json())
+      .then(data => provincesLayer.addData(data))
+      .catch(error => console.error('Error loading Provinces GeoJSON:', error));
+
+    // Draw Plugin
+    var drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    var drawControl = new L.Control.Draw({
+      edit: { featureGroup: drawnItems },
+      draw: {
+        polygon: true,
+        polyline: true,
+        rectangle: true,
+        circle: true,
+        marker: true
+      }
+    });
+    map.addControl(drawControl);
+
+    map.on('draw:created', function(e) {
+      var layer = e.layer;
+      drawnItems.addLayer(layer);
+    });
+
+    // Layer toggle
+    var intensityLayerVisible = false;
+    var provincesLayerVisible = false;
+
+    document.getElementById('toggleIntensityLayer').addEventListener('click', function() {
+      if (intensityLayerVisible) {
+        map.removeLayer(featureLayer);
+        intensityLayerVisible = false;
+        map.removeControl(intensityLegend); // Remove intensity legend when layer is hidden
+      } else {
+        map.addLayer(featureLayer);
+        intensityLayerVisible = true;
+        intensityLegend.addTo(map); // Add intensity legend when layer is shown
+      }
+    });
+
+    document.getElementById('toggleProvincesLayer').addEventListener('click', function() {
+      if (provincesLayerVisible) {
+        map.removeLayer(provincesLayer);
+        provincesLayerVisible = false;
+        map.removeControl(provinceLegend); // Remove province legend when layer is hidden
+      } else {
+        map.addLayer(provincesLayer);
+        provincesLayerVisible = true;
+        provinceLegend.addTo(map); // Add province legend when layer is shown
+      }
+    });
+
+    // Legends 
+var intensityLegend = L.control({ position: 'bottomright' });
+intensityLegend.onAdd = function() {
+  var div = L.DomUtil.create('div', 'info legend');
+  var grades = [4.5, 5.99, 6.98, 7.97, 8.4];
+  var labels = ['<strong>Earthquake Intensity</strong>'];
+  
+  // Adding the legend content
+  for (var i = 0; i < grades.length; i++) {
+    div.innerHTML +=
+      '<i style="background:' + getColorForIntensity(grades[i]) + '; width: 20px; height: 20px; display: inline-block; margin-right: 5px;"></i> ' +
+      grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+  }
+
+  // Style the legend with a white background and padding
+  div.style.backgroundColor = 'white';  // Set background to white
+  div.style.padding = '10px';           // Add padding
+  div.style.borderRadius = '5px';       // Rounded corners
+  div.style.boxShadow = '0px 0px 6px rgba(0,0,0,0.1)'; // Light shadow for contrast
+
+  return div;
+};
+
+var provinceLegend = L.control({ position: 'bottomright' });
+provinceLegend.onAdd = function() {
+  var div = L.DomUtil.create('div', 'info legend');
+  var provinces = ['Ouarzazate', 'Al Haouz', 'Marrakech', 'Chichaoua', 'Taroudannt'];
+  var colors = ['#cd5b5b', '#e8a529', '#0eab96', '#6ccabd','#9925e4'];
+  div.innerHTML = '<strong>Provinces</strong><br>';
+  
+  // Adding the province legend content
+  for (var i = 0; i < provinces.length; i++) {
+    div.innerHTML +=
+      '<i style="background:' + colors[i] + '; width: 20px; height: 20px; display: inline-block; margin-right: 5px;"></i> ' +
+      provinces[i] + '<br>';
+  }
+
+  // Style the legend with a white background and padding
+  div.style.backgroundColor = 'white';  // Set background to white
+  div.style.padding = '10px';           // Add padding
+  div.style.borderRadius = '5px';       // Rounded corners
+  div.style.boxShadow = '0px 0px 6px rgba(0,0,0,0.1)'; // Light shadow for contrast
+
+  return div;
+};
+
+    // Function to assign color based on earthquake intensity
+    function getColorForIntensity(value) {
+      return value >= 8.4 ? '#FF0000' :
+             value >= 7.97 ? '#FF4500' :
+             value >= 6.98 ? '#FFD700' :
+             value >= 5.99 ? '#228B22' :
+             value >= 4.5 ? '#0000FF' :
+             '#ADD8E6';
+    }
+
+    // Function to assign color to provinces
+    function getProvinceColor(Name) {
+      switch (Name) {
+        case 'Ouarzazate': return '#FFD700';
+        case 'Al Haouz': return '#e8a529';
+        case 'Marrakech': return '#0eab96';
+        case 'Chichaoua': return '#6ccabd';
+        case 'Taroudannt': return '#9925e4';
+        case 'Ouarzazate': return '#8de623 ';
+    
+        default: return '#cd5b5b ';
+      }
+    }
+    // Initialize the Chart.js chart
+const ctx = document.getElementById('chart').getContext('2d');
+const earthquakeChart = new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ["Al Haouz", "Taroudant", "Chichaoua", "Marrakech", "Azilal", "Ouarzazate"],
+    datasets: [
+      {
+        label: 'Fatalities',
+        data: [1684, 980, 202, 18, 5, 2],
+        backgroundColor: '#D9534F'
+      },
+      {
+        label: 'Injuries',
+        data: [1500, 1000, 300, 50, 20, 10],
+        backgroundColor: '#5BC0DE'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: { title: { display: true, text: 'Province' } },
+      y: { title: { display: true, text: 'Number of People' } }
+    },
+    plugins: {
+      legend: { position: 'top' },
+      title: { display: true, text: '2023 Morocco Earthquake Impact by Province' }
+    }
+  }
+});
+
+// Toggle button functionality to show/hide the chart
+const toggleButton = document.getElementById('toggleChartLayer');
+const chartContainer = document.getElementById('chart-container');
+
+toggleButton.addEventListener('click', () => {
+  if (chartContainer.style.display === 'none') {
+    chartContainer.style.display = 'block';  // Show the chart container
+    toggleButton.textContent = 'Hide Chart';
+  } else {
+    chartContainer.style.display = 'none';  // Hide the chart container
+    toggleButton.textContent = 'Show Chart';
+  }
+});
+
+// Data for the pie chart
+const reliefLabels = [
+    'Displaced People Assisted with Shelter',
+    'Food Assistance',
+    'Hygiene Kits Distributed'
+];
+
+const reliefData = [18788, 6500, 5411]; // Values for the chart
+
+const reliefColors = [
+    '#1e50ba ',
+    '#b81d29',
+    '#dc8b3b '
+];
+
+// Initialize the chart only when the chart container is shown
+let reliefChartInitialized = false;
+
+function initializeReliefChart() {
+    if (reliefChartInitialized) return; // Prevent re-initialization
+
+    const reliefChartConfig = {
+    type: 'pie',
+    data: {
+        labels: reliefLabels,
+        datasets: [{
+            label: 'Relief Assistance Distribution',
+            data: reliefData,
+            backgroundColor: reliefColors,
+            hoverOffset: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'top',
+                onClick: function(e, legendItem, legend) {
+                    const index = legendItem.datasetIndex;
+                    const meta = legend.chart.getDatasetMeta(index);
+                    meta.hidden = meta.hidden === null ? !legend.chart.data.datasets[index].hidden : null;
+                    legend.chart.update();
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    title: function(tooltipItem) {
+                        return tooltipItem[0].label + ' - ' + tooltipItem[0].raw + ' people';
+                    },
+                    label: function(tooltipItem) {
+                        let value = tooltipItem.raw;
+                        let total = tooltipItem.dataset.data.reduce((a, b) => a + b, 0);
+                        let percentage = ((value / total) * 100).toFixed(1);
+                        return `Amount: ${value} (${percentage}%)`;
+                    }
+                }
+            }
+        },
+        hover: {
+            onHover: function(event, chartElement) {
+                // Optional: You can perform some actions when hovering over the chart
+            }
+        },
+        animation: {
+            animateScale: true,
+            animateRotate: true
+        }
+    }
+};
+
+
+    const reliefCtx = document.getElementById('reliefChart').getContext('2d');  // Use a different variable name
+    new Chart(reliefCtx, reliefChartConfig);
+
+    reliefChartInitialized = true;
+}
+
+// Toggle button functionality to show/hide the new chart
+const toggleReliefChartButton = document.getElementById('toggleReliefChartLayer');
+const reliefChartContainer = document.getElementById('relief-chart-container');
+
+toggleReliefChartButton.addEventListener('click', () => {
+    if (reliefChartContainer.style.display === 'none') {
+        reliefChartContainer.style.display = 'block';  // Show the chart container
+        toggleReliefChartButton.textContent = 'Hide Relief Chart';
+        initializeReliefChart();  // Initialize the chart when showing
+    } else {
+        reliefChartContainer.style.display = 'none';  // Hide the chart container
+        toggleReliefChartButton.textContent = 'Show Relief Chart';
+    }
+});
+
+
+// Data for the recovery progress chart
+const recoveryData = [30, 15, 20];  // Percentages for Housing, Schools, and Infrastructure
+const recoveryLabels = [
+    'Housing Reconstruction (15,000 homes)',
+    'School Reconstruction (150 schools)',
+    'Infrastructure Repair (500 km of roads)'
+];
+const recoveryColors = ['#4CAF50', '#2196F3', '#FF9800'];  // Colors for each category
+
+let recoveryChartInitialized = false;
+
+// Function to initialize the recovery chart
+function initializeRecoveryChart() {
+    if (recoveryChartInitialized) return;  // Prevent re-initialization
+
+    const ctx = document.getElementById('recoveryChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',  // Change to 'bar' chart for progress visualization
+        data: {
+            labels: recoveryLabels,
+            datasets: [{
+                label: 'Recovery Progress (%)',
+                data: recoveryData,
+                backgroundColor: recoveryColors,
+                borderColor: ['#388E3C', '#1976D2', '#F57C00'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        stepSize: 10
+                    }
+                }
+            },
+            plugins: {
+                legend: { position: 'top' },
+                title: { display: true, text: 'Recovery Progress by Sector' }
+            }
+        }
+    });
+
+    recoveryChartInitialized = true;
+}
+
+// Toggle button functionality to show/hide the recovery progress chart
+const toggleRecoveryChartButton = document.getElementById('toggleRecoveryChartLayer');
+const recoveryChartContainer = document.getElementById('recovery-chart-container');
+
+toggleRecoveryChartButton.addEventListener('click', () => {
+    if (recoveryChartContainer.style.display === 'none') {
+        recoveryChartContainer.style.display = 'block';  // Show the chart container
+        toggleRecoveryChartButton.textContent = 'Hide Recovery Progress';
+        initializeRecoveryChart();  // Initialize the chart when showing
+    } else {
+        recoveryChartContainer.style.display = 'none';  // Hide the chart container
+        toggleRecoveryChartButton.textContent = 'Show Recovery Progress';
+    }
+});
+
+
+
+
+// When the layer option in the sidebar is clicked, toggle the iframe
+document.getElementById("openIframeLayer").addEventListener("click", function() {
+  
+  // Check if the iframe already exists
+  var iframe = document.getElementById("iframeInMap");
+
+  if (iframe) {
+    // If iframe exists, remove it
+    iframe.remove();
+  } else {
+    // Otherwise, create and add the iframe to the map
+    iframe = document.createElement("iframe");
+    iframe.id = "iframeInMap"; // Give it an ID for reference
+    iframe.src = "https://rosaliniette.github.io/webmapping/comparaison.html"; // Replace with your desired URL
+    iframe.width = "100%";
+    iframe.height = "100%";
+    iframe.style.position = "absolute";
+    iframe.style.top = "0";
+    iframe.style.left = "0";
+    iframe.style.zIndex = "1000"; // Ensure it's on top of the map
+    iframe.style.border = "none"; // Optional: Remove border
+
+    // Append the iframe to the map
+    document.getElementById("map").appendChild(iframe);
+  }
+});
+
+function updateProgressState(taskId, progress, state) {
+    const progressBar = document.querySelector(`#${taskId} .progress-fill`);
+    const progressState = document.querySelector(`#${taskId} .progress-state`);
+    const progressPercentage = document.querySelector(`#${taskId} .progress-percentage`);
+
+    progressBar.style.width = `${progress}%`;
+    progressPercentage.textContent = `${progress}% completed`;
+
+    switch (state) {
+        case 'idle':
+            progressBar.style.backgroundColor = '#B0BEC5';  // Grey for idle
+            progressState.textContent = "Waiting...";
+            progressState.style.color = '#B0BEC5';
+            break;
+        case 'active':
+            progressBar.style.backgroundColor = '#00BCD4';  // Blue for active
+            progressState.textContent = "In Progress";
+            progressState.style.color = '#00BCD4';
+            break;
+        case 'success':
+            progressBar.style.backgroundColor = '#4CAF50';  // Green for success
+            progressState.textContent = "Upload complete";
+            progressState.style.color = '#4CAF50';
+            break;
+        case 'error':
+            progressBar.style.backgroundColor = '#F44336';  // Red for error
+            progressState.textContent = "Upload failed";
+            progressState.style.color = '#F44336';
+            break;
+        default:
+            progressBar.style.backgroundColor = '#B0BEC5';
+            progressState.textContent = "Unknown state";
+            progressState.style.color = '#B0BEC5';
+            break;
+    }
+}
+
+// Example usage:
+// Housing task: 30% progress, active state
+updateProgressState('housing-progress', 30, 'active');
+
+// School task: 15% progress, active state
+updateProgressState('school-progress', 15, 'active');
+
+// Infrastructure task: 20% progress, success state
+updateProgressState('infrastructure-progress', 100, 'success');
+
+  </script>
+</body>
+</html>
